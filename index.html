@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+  <title>Marching Squares | Metaballs in JavaScript</title>
+  <!-- MOBILE––––––––––––––––––––––– -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://api.fonts.coollabs.io/css2?family=Raleway:wght@300;400;600&display=swap" rel="stylesheet">
+  <meta name="description"
+    content="An interactive step by step explanation of the marching squares algorithm for contour finding. Includes a merging metaball implementation using JavaScript!">
+  <!-- CSS––––––––––––––––––––––– -->
+  <link rel="stylesheet" href="css/normalize.css">
+  <link rel="stylesheet" href="css/skeleton.css">
+  <link rel="stylesheet" href="css/darkskelleton.css" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="images/favicon.png">
+
+</head>
+
+<body>
+  <canvas id="canvas" width="960" height="960"></canvas>
+  <!-- detect color scheme -->
+  <script type="text/javascript">
+    var secondary = "#F00"
+    var primary = "#333"
+
+    //set the colorscheme
+    if (window.matchMedia) {
+      window.matchMedia("(prefers-color-scheme: dark)").addListener(e => {
+        primary = e.matches
+          ? "#d3d7cf"
+          : "#333";
+        console.log("theme change detected, setting color to", primary);
+      });
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches)
+        primary = "#d3d7cf";
+    }
+  </script>
+
+  <!-- header and intro text -->
+  <div class="container">
+    <section style="height: 85vh;">
+      <div class="row" style="padding-top: 25%">
+        <div class="twelve column">
+          <h1>Marching Squares</h1>
+          <p>A fun little demo to distract me from the upcoming exams.
+            <br>
+            Play around with the settings to see how it affects the background!
+          </p>
+        </div>
+      </div>
+
+      <!-- buttons and sliders for the main demo -->
+      <div class="row">
+        <div class="one-half column">
+          <input id="resolution" style="direction: rtl" type="range" min="5" step="1" max="50" value="10" class="slider"
+            oninput="m.rez = parseInt(this.value); m.generateMap(); document.getElementById('resolutiono').textContent=this.value">
+          <label for="resolution" class="u-pull-left">resolution</label>
+          <output id="resolutiono" class="u-pull-right" name="result">10</output class="u-pull-right">
+
+          <input id="density" type="range" min="5" step="1" max="20" value="12" class="slider"
+            oninput="m.circleCount = parseInt(this.value); m.setCircleRadius(64-2*parseInt(this.value)); document.getElementById('densityo').textContent=this.value">
+          <label for="resolution" class="u-pull-left">blob density</label>
+          <output id="densityo" class="u-pull-right" name="result">12</output class="u-pull-right">
+
+        </div>
+        <div class="one-half column">
+          <button type="button" class="u-full-width" name="button"
+            onclick="m.interpolation=!m.interpolation; this.textContent = m.interpolation?'interpolation on':'interpolation off'">interpolation
+            on</button>
+          <button type="button" class="u-full-width" name="button"
+            onclick="m.showCircles=!m.showCircles; this.textContent = m.showCircles?'hide circles':'show circles'">show
+            circles</button>
+        </div>
+      </div>
+
+    </section>
+    <noscript>
+      <style>
+        #explanation {
+          opacity: 1 !important;
+        }
+      </style>
+      <em>JavaScript is required to see the interactive demo.</em>
+    </noscript>
+    <section id="explanation">
+      <!-- the explanation section -->
+      <div class="row">
+        <div class="twelve column">
+          <h2>What is this?</h2>
+          <p>According to Wikipedia, the <a href="https://wikipedia.org/wiki/Marching_squares">marching squares
+              algorithm</a> is a computer graphics algorithm that generates contours for a 2D scalar field. Simple
+            enough, right? Let's break down what that means. In computer graphics, we oftentimes have a grid of values,
+            e.g. when working with images. Maybe the image is a height map of the natural terrain around us, then it
+            would be interesting to draw contours around areas, that are at a certain elevation, like the contour lines
+            commonly seen in geographical maps. The marching squares algorithm gives us an easy way to do that, and
+            here's how:
+            <br>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="one-half column">
+          <h3>The Numbers</h3>
+          <p>First, let's create some data to draw contours around.
+            <br>
+            To create these merging blobs, we can generate a bunch of points, that bounce around in the box and
+            calculate the distance to each one of them. Each of our grid cells then get's assigned the inverse sum of
+            those distances, so cells that are close to one or multiple balls have high values, while cells far away are
+            close to zero.
+          </p>
+        </div>
+        <div class="one-half column">
+          <canvas id="gridValuesDemo" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+      </div>
+      <hr>
+
+      <div class="row">
+        <div class="one-half column">
+          <h3>Fill a single cell</h3>
+          <p>Now let's get into the fancy stuff.
+            First we have to decide on a value, that we want to draw our contours around. I chose one, so all points
+            greater than one will be contained in the resulting blobs, and all values smaller than one will be outside.
+            <br>
+
+            To achieve that, we treat each grid point as one of four cell corners. For each corner we check if the value
+            is
+            above or below the threshold value and save that information. The resulting cell will have one of the 16
+            possible configurations of
+            corners that are "inside" or "outside" the contour. Then we just do a lookup, and draw the according one of
+            the 16 line
+            configurations over the cell, as shown in the next image.
+          </p>
+        </div>
+        <div class="one-half column">
+          <canvas id="gridElementTypes" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+      </div>
+      <hr>
+
+      <div class="row">
+        <div class="twelve column">
+          <h3>Rinse and repeat</h3>
+          <p>Now we just repeat the process until we covered all cells and get a contour plot! It might still look a bit
+            blocky, but we can improve that by simply increasing the resolution.
+          </p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="one-half column">
+          <canvas id="coarseNoInterp" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+        <div class="one-half column">
+          <canvas id="noInterp" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+      </div>
+      <hr>
+
+      <div class="row">
+        <div class="twelve column">
+          <h3>Linear interpolation</h3>
+          <p>The final step is to smooth out the lines, by adjusting their position. For that, we linearly interpolate
+            our threshold value between the two adjacent corner values. I for example am using a threshold value of 1,
+            so if one corner point has a value of 0.5 and The adjacent corner has a value of 1.5, the line segment will
+            be placed exactly in the middle. If the corners had the values 0.5 and 3, the line would be placed a lot
+            closer to the left. This kind of linear interpolation is given by the following formula:
+            <br>
+            <code>f(x, y) = (1 - x) / (y - x)</code>
+            <br>
+            With <b>x</b> being the left corner value, <b>y</b> the right and the hardcoded threshold being 1.
+            <b>f(x, y)</b> then returns a percentage describing the resulting points position.
+            <br>
+            <br>
+            With interpolation, the final contours look like this:
+          </p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="one-half column">
+          <canvas id="interpolatedDemo" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+        <div class="one-half column">
+          <canvas id="highResDemo" class="u-full-width" width="460" height="460"></canvas>
+        </div>
+      </div>
+      <hr>
+      <div class="row" style="margin-bottom:10%;">
+        <div class="twelve column">
+          <h3>What now?</h3>
+          <p>Go forth and draw contours around whatever your heart desires! Nothing can stop you, now that you have
+            mastered the power of the squares!
+
+            If you still want to learn more about this algorithm, check out
+            <a href="http://jamie-wong.com/2014/08/19/metaballs-and-marching-squares/">Jamie Wong's blogpost</a> that
+            inspired me in the first place, or <a href="https://github.com/Jatin-Shihora/Parade-Of-Marchingsquares">my code</a>
+            for this page on GitHub.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+  </div>
+  <script type="text/javascript" src="scripts/script_instanced.js"></script>
+  <script type="text/javascript" src="scripts/individualElements.js"></script>
+  <script type="text/javascript" src="scripts/script.js"></script>
+</body>
+<script>if (!!localStorage.getItem("_dev") && !sessionStorage.getItem("_swa") && document.referrer.indexOf(location.protocol + "//" + location.host) !== 0) { fetch("https://counter.dev/track?" + new URLSearchParams({ referrer: document.referrer, screen: screen.width + "x" + screen.height, user: "missing-user", utcoffset: "1" })) }; sessionStorage.setItem("_swa", "1");</script>
+
+</html>
